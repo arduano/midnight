@@ -1,71 +1,22 @@
-use std::{
-    fmt::{Display, Formatter},
-    future::Future,
-};
+use std::future::Future;
+
+use crate::twilight::gateway::{Cluster, Event, Intents};
 
 use futures::StreamExt;
-use thiserror::Error;
-use twilight_gateway::{Cluster, Event, Intents};
-use twilight_http::{response::DeserializeBodyError, Client, Error};
-use twilight_model::{
-    channel::Channel,
-    id::{marker::ChannelMarker, Id},
-};
+use twilight_gateway::cluster::ClusterStartError;
 
+pub mod client;
 pub mod twilight;
 
-struct DiscordClient {
-    client: Client,
-}
-
-#[derive(Debug, Error)]
-enum DiscordError {
-    TwilightError(#[from] Error),
-    DeserializeError(#[from] DeserializeBodyError),
-}
-
-impl Display for DiscordError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TwilightError(e) => write!(f, "Twilight error: {}", e),
-        }
-    }
-}
-
-impl DiscordClient {
-    pub fn new(token: String) -> Self {
-        let client = Client::new(token);
-        Self { client }
-    }
-
-    pub async fn get_channel(
-        &self,
-        channel_id: Id<ChannelMarker>,
-    ) -> impl Future<Output = Result<Channel, DiscordError>> {
-        let channel = self
-            .client
-            .channel(channel_id)
-            .exec()
-            .await?
-            .model()
-            .await?;
-        println!("Channel: {:?}", channel);
-    }
-}
-
-pub async fn run_socket_event_cluster<
+pub async fn run_discord_event_loop<
     H: 'static + Fn(Event) -> F,
     F: 'static + Future<Output = ()>,
 >(
     token: String,
     handler: H,
-) {
-    let intents = Intents::GUILDS | Intents::GUILD_MESSAGE_REACTIONS;
-
-    let (cluster, mut events) = Cluster::builder(token, intents)
-        .build()
-        .await
-        .expect("Failed to create cluster");
+    intents: Intents,
+) -> Result<(), ClusterStartError> {
+    let (cluster, mut events) = Cluster::builder(token, intents).build().await?;
 
     tokio::spawn(async move {
         cluster.up().await;
@@ -74,4 +25,19 @@ pub async fn run_socket_event_cluster<
     while let Some((_, event)) = events.next().await {
         handler(event).await;
     }
+
+    Ok(())
+}
+
+pub async fn run_discord_event_loop_or_panic<
+    H: 'static + Fn(Event) -> F,
+    F: 'static + Future<Output = ()>,
+>(
+    token: String,
+    handler: H,
+    intents: Intents,
+) {
+    run_discord_event_loop(token, handler, intents)
+        .await
+        .expect("Failed to start Discord event loop");
 }
