@@ -1,7 +1,10 @@
 use twilight_http::request::channel::message::UpdateMessage;
-use twilight_model::{channel::{embed::Embed, Message}, http::attachment::Attachment};
+use twilight_model::{
+    channel::{embed::Embed, Message},
+    http::attachment::Attachment,
+};
 
-use super::{DiscordError, DiscordOperation, InnerTwilightError, await_model};
+use super::{await_model, error_guard, DiscordError, DiscordOperation, InnerTwilightError};
 
 pub struct UpdateMessageBuilder<'a> {
     create: UpdateMessage<'a>,
@@ -35,6 +38,6 @@ impl<'a> UpdateMessageBuilder<'a> {
     }
 
     pub async fn exec(self) -> Result<Message, DiscordError> {
-        DiscordError::guard(self.operation, await_model!(self.create) ).await
+        error_guard(self.operation, await_model!(self.create)).await
     }
 }

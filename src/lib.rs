@@ -6,6 +6,8 @@ use futures::StreamExt;
 use twilight_gateway::cluster::ClusterStartError;
 
 pub mod client;
+pub mod error;
+pub mod operation;
 pub mod twilight;
 
 pub async fn run_discord_event_loop<

@@ -1,113 +1,22 @@
-use std::fmt::{Display, Formatter};
-
 use futures::Future;
-use thiserror::Error;
-use twilight_http::{
-    request::channel::reaction::RequestReactionType, response::DeserializeBodyError, Client, Error,
-};
+
+use twilight_http::{request::channel::reaction::RequestReactionType, Client};
 use twilight_model::{
     channel::{Channel, Message},
     guild::{Guild, Member},
     id::{marker::*, Id},
     user::{CurrentUser, User},
 };
-use twilight_validate::message::MessageValidationError;
+
+use crate::{
+    error::{DiscordError, InnerTwilightError},
+    operation::DiscordOperation,
+};
 
 use self::{create_message::CreateMessageBuilder, update_message::UpdateMessageBuilder};
 
 pub mod create_message;
 pub mod update_message;
-
-#[derive(Debug, Error)]
-pub enum InnerTwilightError {
-    TwilightError(#[from] Error),
-    DeserializeError(#[from] DeserializeBodyError),
-    ValidationError(#[from] MessageValidationError),
-}
-
-impl Display for InnerTwilightError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TwilightError(e) => write!(f, "Twilight error: {}", e),
-            Self::DeserializeError(e) => write!(f, "Deserialize error: {}", e),
-            Self::ValidationError(e) => write!(f, "Validation error: {}", e),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum DiscordOperation {
-    GetCurrentUser,
-    GetChannel {
-        channel_id: Id<ChannelMarker>,
-    },
-    GetGuild {
-        guild_id: Id<GuildMarker>,
-    },
-    GetMessage {
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-    },
-    GetMember {
-        guild_id: Id<GuildMarker>,
-        user_id: Id<UserMarker>,
-    },
-    GetUser {
-        user_id: Id<UserMarker>,
-    },
-    CreateMessage {
-        channel_id: Id<ChannelMarker>,
-    },
-    UpdateMessage {
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-    },
-    AddRole {
-        guild_id: Id<GuildMarker>,
-        user_id: Id<UserMarker>,
-        role_id: Id<RoleMarker>,
-    },
-    RemoveRole {
-        guild_id: Id<GuildMarker>,
-        user_id: Id<UserMarker>,
-        role_id: Id<RoleMarker>,
-    },
-    AddReaction {
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-    },
-    RemoveOwnReaction {
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-    },
-    RemoveReaction {
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-        user_id: Id<UserMarker>,
-    },
-}
-
-impl DiscordError {
-    fn new(inner: InnerTwilightError, operation: DiscordOperation) -> Self {
-        Self { inner, operation }
-    }
-
-    fn guard<T, Fut: Future<Output = Result<T, InnerTwilightError>>>(
-        operation: DiscordOperation,
-        f: impl FnOnce() -> Fut,
-    ) -> impl Future<Output = Result<T, DiscordError>> {
-        async move {
-            f().await
-                .map_err(|e| DiscordError::new(e.into(), operation))
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct DiscordError {
-    pub inner: InnerTwilightError,
-    pub operation: DiscordOperation,
-}
 
 pub struct DiscordClient {
     client: Client,
@@ -130,6 +39,16 @@ macro_rules! await_empty {
 
 pub(self) use await_model;
 
+fn error_guard<T, Fut: Future<Output = Result<T, InnerTwilightError>>>(
+    operation: DiscordOperation,
+    f: impl FnOnce() -> Fut,
+) -> impl Future<Output = Result<T, DiscordError>> {
+    async move {
+        f().await
+            .map_err(|e| DiscordError::new(e.into(), operation))
+    }
+}
+
 impl DiscordClient {
     pub fn new(token: String) -> Self {
         let client = Client::new(token);
@@ -137,7 +56,7 @@ impl DiscordClient {
     }
 
     pub async fn current_user(&self) -> Result<CurrentUser, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetCurrentUser,
             await_model!(self.client.current_user()),
         )
@@ -145,7 +64,7 @@ impl DiscordClient {
     }
 
     pub async fn channel(&self, channel_id: Id<ChannelMarker>) -> Result<Channel, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetChannel { channel_id },
             await_model!(self.client.channel(channel_id)),
         )
@@ -157,7 +76,7 @@ impl DiscordClient {
         channel_id: Id<ChannelMarker>,
         message_id: Id<MessageMarker>,
     ) -> Result<Message, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetMessage {
                 channel_id,
                 message_id,
@@ -172,7 +91,7 @@ impl DiscordClient {
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
     ) -> Result<Member, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetMember { guild_id, user_id },
             await_model!(self.client.guild_member(guild_id, user_id)),
         )
@@ -180,7 +99,7 @@ impl DiscordClient {
     }
 
     pub async fn guild(&self, guild_id: Id<GuildMarker>) -> Result<Guild, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetGuild { guild_id },
             await_model!(self.client.guild(guild_id)),
         )
@@ -188,7 +107,7 @@ impl DiscordClient {
     }
 
     pub async fn user(&self, user_id: Id<UserMarker>) -> Result<User, DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::GetUser { user_id },
             await_model!(self.client.user(user_id)),
         )
@@ -222,7 +141,7 @@ impl DiscordClient {
         user_id: Id<UserMarker>,
         role_id: Id<RoleMarker>,
     ) -> Result<(), DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::AddRole {
                 guild_id,
                 user_id,
@@ -241,7 +160,7 @@ impl DiscordClient {
         user_id: Id<UserMarker>,
         role_id: Id<RoleMarker>,
     ) -> Result<(), DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::RemoveRole {
                 guild_id,
                 user_id,
@@ -260,7 +179,7 @@ impl DiscordClient {
         message_id: Id<MessageMarker>,
         reaction: &RequestReactionType<'_>,
     ) -> Result<(), DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::AddReaction {
                 channel_id,
                 message_id,
@@ -278,7 +197,7 @@ impl DiscordClient {
         message_id: Id<MessageMarker>,
         reaction: &RequestReactionType<'_>,
     ) -> Result<(), DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::RemoveOwnReaction {
                 channel_id,
                 message_id,
@@ -297,7 +216,7 @@ impl DiscordClient {
         reaction: &RequestReactionType<'_>,
         user_id: Id<UserMarker>,
     ) -> Result<(), DiscordError> {
-        DiscordError::guard(
+        error_guard(
             DiscordOperation::RemoveReaction {
                 channel_id,
                 message_id,

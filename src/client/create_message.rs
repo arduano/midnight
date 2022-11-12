@@ -4,7 +4,7 @@ use twilight_model::{
     http::attachment::Attachment,
 };
 
-use super::{await_model, DiscordError, DiscordOperation, InnerTwilightError};
+use super::{await_model, error_guard, DiscordError, DiscordOperation, InnerTwilightError};
 
 pub struct CreateMessageBuilder<'a> {
     create: CreateMessage<'a>,
@@ -38,6 +38,6 @@ impl<'a> CreateMessageBuilder<'a> {
     }
 
     pub async fn exec(self) -> Result<Message, DiscordError> {
-        DiscordError::guard(self.operation, await_model!(self.create)).await
+        error_guard(self.operation, await_model!(self.create)).await
     }
 }
