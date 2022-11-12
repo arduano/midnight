@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures::Future;
 
 use twilight_http::{request::channel::reaction::RequestReactionType, Client};
@@ -18,8 +20,9 @@ use self::{create_message::CreateMessageBuilder, update_message::UpdateMessageBu
 pub mod create_message;
 pub mod update_message;
 
+#[derive(Clone)]
 pub struct DiscordClient {
-    client: Client,
+    client: Arc<Client>,
 }
 
 macro_rules! await_model {
@@ -52,7 +55,9 @@ fn error_guard<T, Fut: Future<Output = Result<T, InnerTwilightError>>>(
 impl DiscordClient {
     pub fn new(token: String) -> Self {
         let client = Client::new(token);
-        Self { client }
+        Self {
+            client: Arc::new(client),
+        }
     }
 
     pub async fn current_user(&self) -> Result<CurrentUser, DiscordError> {
