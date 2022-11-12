@@ -23,7 +23,7 @@ impl Display for InnerTwilightError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub struct DiscordError {
     pub inner: InnerTwilightError,
     pub operation: DiscordOperation,
