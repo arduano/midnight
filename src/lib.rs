@@ -13,8 +13,8 @@ pub async fn run_discord_event_loop<
     F: 'static + Future<Output = ()>,
 >(
     token: String,
-    handler: H,
     intents: Intents,
+    handler: H,
 ) -> Result<(), ClusterStartError> {
     let (cluster, mut events) = Cluster::builder(token, intents).build().await?;
 
@@ -34,10 +34,10 @@ pub async fn run_discord_event_loop_or_panic<
     F: 'static + Future<Output = ()>,
 >(
     token: String,
-    handler: H,
     intents: Intents,
+    handler: H,
 ) {
-    run_discord_event_loop(token, handler, intents)
+    run_discord_event_loop(token, intents, handler)
         .await
         .expect("Failed to start Discord event loop");
 }
