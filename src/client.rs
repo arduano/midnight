@@ -103,6 +103,7 @@ impl DiscordError {
     }
 }
 
+#[derive(Debug)]
 pub struct DiscordError {
     pub inner: InnerTwilightError,
     pub operation: DiscordOperation,
