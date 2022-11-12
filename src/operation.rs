@@ -29,6 +29,10 @@ pub enum DiscordOperation {
         channel_id: Id<ChannelMarker>,
         message_id: Id<MessageMarker>,
     },
+    DeleteMessage {
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+    },
     AddRole {
         guild_id: Id<GuildMarker>,
         user_id: Id<UserMarker>,
@@ -75,6 +79,10 @@ impl Display for DiscordOperation {
                 channel_id,
                 message_id,
             } => write!(f, "Update message {} in channel {}", message_id, channel_id),
+            Self::DeleteMessage {
+                channel_id,
+                message_id,
+            } => write!(f, "Delete message {} in channel {}", message_id, channel_id),
             Self::AddRole {
                 guild_id,
                 user_id,

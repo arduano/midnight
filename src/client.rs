@@ -140,6 +140,21 @@ impl DiscordClient {
         )
     }
 
+    pub async fn delete_message(
+        &self,
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+    ) -> Result<(), DiscordError> {
+        error_guard(
+            DiscordOperation::DeleteMessage {
+                channel_id,
+                message_id,
+            },
+            await_empty!(self.client.delete_message(channel_id, message_id)),
+        )
+        .await
+    }
+
     pub async fn add_role(
         &self,
         guild_id: Id<GuildMarker>,
